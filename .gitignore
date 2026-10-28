@@ -1,0 +1,48 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Caching and testing
+.pytest_cache/
+.coverage
+htmlcov/
+.cache/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Large media files and video presentation deliverables
+*.mp4
+*.mp3
+*.wav
+presentation/
+CS637_Project_Presentation.mp4
+
+# Slide presentations and exports
+*.pptx
+*.pdf
+CS637_Project_Presentation.pptx
+CS637_Project_Presentation.pdf
+CS637_Project_Presentation_Canva_Style.pptx
+CS637_Project_Presentation_Canva_Style.pdf
+
+# Submission zip archives and bundles
+*.zip
+CS637_Project_Submission.zip
+
+# Execution reports and status logs
+TEST_REPORT.md
+PROJECT_STATUS.md
+results/
+
+# OS and Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
