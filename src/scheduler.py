@@ -27,6 +27,7 @@ class ScheduleResult:
         throughput: Optional[float] = None,
         iterations: int = 0,
         conflict_info: Optional[str] = None,
+        actor_to_idx: Optional[Dict[int, int]] = None,
     ):
         self.is_feasible = is_feasible
         self.start_times = start_times
@@ -35,16 +36,33 @@ class ScheduleResult:
         self.throughput = throughput
         self.iterations = iterations
         self.conflict_info = conflict_info
+        self.actor_to_idx = actor_to_idx
 
     def get_start(self, actor_id: int, iteration: int) -> float:
         if not self.is_feasible or self.start_times is None:
             raise ValueError("Schedule is not feasible")
-        return float(self.start_times[actor_id, iteration])
+        if self.actor_to_idx is not None:
+            if actor_id not in self.actor_to_idx:
+                raise KeyError(f"Actor ID {actor_id} not found in schedule mapping")
+            idx = self.actor_to_idx[actor_id]
+        else:
+            idx = actor_id
+        if iteration < 0 or iteration >= self.iterations:
+            raise IndexError(f"Iteration index {iteration} out of range [0, {self.iterations})")
+        return float(self.start_times[idx, iteration])
 
     def get_completion(self, actor_id: int, iteration: int) -> float:
         if not self.is_feasible or self.completion_times is None:
             raise ValueError("Schedule is not feasible")
-        return float(self.completion_times[actor_id, iteration])
+        if self.actor_to_idx is not None:
+            if actor_id not in self.actor_to_idx:
+                raise KeyError(f"Actor ID {actor_id} not found in schedule mapping")
+            idx = self.actor_to_idx[actor_id]
+        else:
+            idx = actor_id
+        if iteration < 0 or iteration >= self.iterations:
+            raise IndexError(f"Iteration index {iteration} out of range [0, {self.iterations})")
+        return float(self.completion_times[idx, iteration])
 
     def __repr__(self):
         if not self.is_feasible:
@@ -58,7 +76,7 @@ class ScheduleResult:
 def synthesize_asap_schedule(
     graph: ExtendedHSDFG,
     iterations: int = 1,
-    release_times: Optional[Dict[int, float]] = None,
+    release_times: Optional[Dict] = None,
 ) -> ScheduleResult:
     """
     Synthesizes the earliest-possible (ASAP) schedule for K iterations satisfying
@@ -70,7 +88,20 @@ def synthesize_asap_schedule(
     n = graph.num_actors
     K = iterations
     if n == 0 or K <= 0:
-        return ScheduleResult(is_feasible=True, makespan=0.0, iterations=0)
+        empty_k = max(0, K)
+        return ScheduleResult(
+            is_feasible=True,
+            start_times=np.zeros((n, empty_k), dtype=float),
+            completion_times=np.zeros((n, empty_k), dtype=float),
+            makespan=0.0,
+            iterations=empty_k,
+            actor_to_idx={},
+        )
+
+    # Canonical actor indexing to support arbitrary / non-contiguous actor IDs
+    actor_ids = sorted(graph.actors.keys())
+    actor_to_idx = {aid: idx for idx, aid in enumerate(actor_ids)}
+    idx_to_actor = {idx: aid for idx, aid in enumerate(actor_ids)}
 
     # 1. First check intra-iteration state space feasibility
     ss = transform_extended_hsdfg_to_state_space(graph)
@@ -79,6 +110,7 @@ def synthesize_asap_schedule(
             is_feasible=False,
             iterations=K,
             conflict_info="Contradictory intra-iteration constraints (positive cycle in Kleene star M_0*)",
+            actor_to_idx=actor_to_idx,
         )
 
     # 2. Extract all normalized difference constraints: s_dst(k) - s_src(k - delay) >= weight
@@ -88,18 +120,22 @@ def synthesize_asap_schedule(
     num_nodes = n * K
     src_node = num_nodes
 
-    # Node indexing: (actor_id, k) -> actor_id * K + k
+    # Node indexing: (actor_id, k) -> actor_idx * K + k
     def get_idx(aid: int, k: int) -> int:
-        return aid * K + k
+        idx = actor_to_idx[aid]
+        return idx * K + k
 
     # Build edge list: (u, v, weight) where s_v >= s_u + weight
     edges: List[Tuple[int, int, float]] = []
 
     # Edges from auxiliary source node to iteration 0 (release times)
-    for aid in range(n):
+    for aid in actor_ids:
         r = 0.0
-        if release_times and aid in release_times:
-            r = float(release_times[aid])
+        if release_times:
+            if aid in release_times:
+                r = float(release_times[aid])
+            elif graph.actors[aid].name in release_times:
+                r = float(release_times[graph.actors[aid].name])
         edges.append((src_node, get_idx(aid, 0), r))
 
     # All unrolled difference constraints
@@ -142,8 +178,9 @@ def synthesize_asap_schedule(
                 def node_desc(idx: int) -> str:
                     if idx == src_node:
                         return "auxiliary source sigma_0"
-                    aid = idx // K
+                    a_idx = idx // K
                     k = idx % K
+                    aid = idx_to_actor.get(a_idx, a_idx)
                     aname = graph.actors[aid].name if aid in graph.actors else f"Actor_{aid}"
                     return f"Actor {aname} (k={k})"
 
@@ -153,29 +190,31 @@ def synthesize_asap_schedule(
                     is_feasible=False,
                     iterations=K,
                     conflict_info=f"Contradictory constraints detected: positive cycle between {u_str} and {v_str}",
+                    actor_to_idx=actor_to_idx,
                 )
 
     # 4. Construct start_times and completion_times matrices
     start_times = np.zeros((n, K), dtype=float)
     completion_times = np.zeros((n, K), dtype=float)
 
-    for aid in range(n):
+    for idx, aid in enumerate(actor_ids):
         w = graph.actors[aid].execution_time
         for k in range(K):
             val = dist[get_idx(aid, k)]
             # If node wasn't reached from source, default to 0.0
             st = max(0.0, val if val != -np.inf else 0.0)
-            start_times[aid, k] = st
-            completion_times[aid, k] = st + w
+            start_times[idx, k] = st
+            completion_times[idx, k] = st + w
 
     makespan = float(np.max(completion_times))
     throughput = None
     if K > 1:
-        # Measure empirical throughput over last iterations
+        # Measure empirical bottleneck throughput over the horizon across all actors
         delta_iter = K - 1
-        avg_period = (np.mean(start_times[:, -1]) - np.mean(start_times[:, 0])) / delta_iter
-        if avg_period > 1e-9:
-            throughput = 1.0 / avg_period
+        actor_periods = (start_times[:, -1] - start_times[:, 0]) / delta_iter
+        max_period = float(np.max(actor_periods))
+        if max_period > 1e-9:
+            throughput = 1.0 / max_period
 
     return ScheduleResult(
         is_feasible=True,
@@ -184,16 +223,21 @@ def synthesize_asap_schedule(
         makespan=makespan,
         throughput=throughput,
         iterations=K,
+        actor_to_idx=actor_to_idx,
     )
 
 
 def synthesize_periodic_schedule(
     graph: ExtendedHSDFG,
     max_test_iterations: int = 10,
+    strictly_periodic: bool = False,
 ) -> ScheduleResult:
     r"""
     Synthesizes a periodic schedule and determines the steady-state period \lambda*
     and throughput \Theta = 1/\lambda*.
+
+    If strictly_periodic is True and throughput is finite, formats start times as
+    an exact 1-periodic schedule: s_v(k) = s_v(0) + k * \lambda*.
     """
     ss = transform_extended_hsdfg_to_state_space(graph)
     if not ss.is_feasible:
@@ -207,13 +251,39 @@ def synthesize_periodic_schedule(
     if not res.is_feasible:
         return res
 
-    # Compute period from steady state
+    # Compute analytical spectral throughput from companion matrix
+    spectral_tp = ss.compute_spectral_throughput()
+
+    # Compute bottleneck period from steady state if empirical differences stabilized to 1-periodic
     if max_test_iterations >= 3 and res.start_times is not None:
         p1 = res.start_times[:, -1] - res.start_times[:, -2]
         p0 = res.start_times[:, -2] - res.start_times[:, -3]
         if np.allclose(p1, p0, atol=1e-5):
-            steady_period = float(np.mean(p1))
+            steady_period = float(np.max(p1))
             res.throughput = 1.0 / steady_period if steady_period > 1e-9 else float("inf")
+        elif spectral_tp is not None:
+            # Multi-token delay D > 1 or alternating cycles: exact spectral throughput is authoritative
+            res.throughput = spectral_tp
+    elif spectral_tp is not None:
+        res.throughput = spectral_tp
+
+    # If strictly_periodic requested, construct 1-periodic start times: s_v(k) = s_v(0) + k * lambda*
+    if strictly_periodic and res.throughput is not None and res.throughput > 0 and res.throughput != float("inf"):
+        lambda_star = 1.0 / res.throughput
+        base_starts = res.start_times[:, 0]
+        K = res.iterations
+        p_starts = np.zeros_like(res.start_times)
+        p_comps = np.zeros_like(res.completion_times)
+        actor_ids = sorted(graph.actors.keys())
+        for idx, aid in enumerate(actor_ids):
+            w = graph.actors[aid].execution_time
+            for k in range(K):
+                st = base_starts[idx] + k * lambda_star
+                p_starts[idx, k] = st
+                p_comps[idx, k] = st + w
+        res.start_times = p_starts
+        res.completion_times = p_comps
+        res.makespan = float(np.max(p_comps))
 
     return res
 

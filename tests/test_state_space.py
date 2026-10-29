@@ -80,3 +80,31 @@ def test_state_space_actor_execution_time_bottleneck():
     tp = ss.compute_spectral_throughput()
     assert tp is not None
     assert pytest.approx(tp, rel=1e-5) == 0.01
+
+
+def test_state_space_multi_token_delay_companion():
+    # 2-actor system with feedback channel of delay D=2:
+    # A (w=1.0) -> B (w=1.0) with delay 0 (weight 1.0)
+    # B -> A with delay 2 (initial tokens 2) and lower bound 10.0
+    # Cycle weight = 1.0 + 10.0 = 11.0; cycle tokens = 2.
+    # Analytical period lambda* = 11.0 / 2 = 5.5 => Throughput = 1/5.5 = 0.181818...
+    g = ExtendedHSDFG("Delay2Graph")
+    a = g.add_actor("A", 1.0)
+    b = g.add_actor("B", 1.0)
+    g.add_channel(a, b, initial_tokens=0)
+    g.add_channel(b, a, initial_tokens=2)
+    g.add_lower_bound(b, EventType.START, a, EventType.START, 10.0, delay=2)
+
+    ss = transform_extended_hsdfg_to_state_space(g)
+    assert ss.is_feasible
+    assert ss.max_delay == 2
+
+    # Verify companion transition matrix has shape (n*D, n*D) = (4, 4)
+    trans = ss.compute_state_transition_matrix()
+    assert trans is not None
+    assert trans.shape == (4, 4)
+
+    # Verify spectral throughput matches analytical Maximum Cycle Mean
+    tp = ss.compute_spectral_throughput()
+    assert tp is not None
+    assert pytest.approx(tp, rel=1e-5) == 1.0 / 5.5

@@ -115,3 +115,15 @@ def test_sdf_to_hsdf_conversion():
     assert sched.get_start(p1, 0) >= 2.0
     assert sched.get_start(p2, 0) >= 4.0
     assert sched.get_start(c1, 0) >= sched.get_completion(c0, 0)
+
+
+def test_negative_constraint_delay_rejected():
+    g = ExtendedHSDFG("NegDelayGraph")
+    a = g.add_actor("A", 1.0)
+    b = g.add_actor("B", 1.0)
+
+    with pytest.raises(ValueError, match="delay cannot be negative"):
+        g.add_lower_bound(a, EventType.START, b, EventType.START, 5.0, delay=-1)
+
+    with pytest.raises(ValueError, match="delay cannot be negative"):
+        g.add_upper_bound(a, EventType.START, b, EventType.START, 5.0, delay=-2)

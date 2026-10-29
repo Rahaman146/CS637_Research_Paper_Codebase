@@ -95,3 +95,45 @@ def test_mpmatrix_wrapper():
     b = MPMatrix(np.array([[0.0, 5.0], [2.0, 1.0]]))
     c = a + b
     assert np.allclose(c.data, np.array([[1.0, 5.0], [3.0, 4.0]]))
+
+
+def test_maxplus_vector_matrix_multiplication():
+    # 1D row vector times 2D matrix
+    v = np.array([1.0, 2.0])
+    mat = np.array([[3.0, 4.0], [5.0, 6.0]])
+    # (v @ mat)[0] = max(1+3, 2+5) = 7
+    # (v @ mat)[1] = max(1+4, 2+6) = 8
+    res = mp_mult(v, mat)
+    assert np.allclose(res, np.array([7.0, 8.0]))
+
+    # 1D vector inner product
+    v2 = np.array([5.0, 4.0])
+    # max(1+5, 2+4) = 6.0
+    dot = mp_mult(v, v2)
+    assert dot == 6.0
+
+
+def test_maximum_cycle_mean_empty_matrix():
+    empty_mat = np.full((0, 0), EPSILON)
+    assert maximum_cycle_mean(empty_mat) == 0.0
+
+
+def test_mpmatrix_with_numpy_array_operands():
+    a = MPMatrix(np.array([[1.0, 2.0], [3.0, 4.0]]))
+    b_raw = np.array([[0.0, 5.0], [2.0, 1.0]])
+
+    # Mixed addition: MPMatrix + np.ndarray
+    c = a + b_raw
+    assert isinstance(c, MPMatrix)
+    assert np.allclose(c.data, np.array([[1.0, 5.0], [3.0, 4.0]]))
+
+    # Mixed multiplication: MPMatrix @ np.ndarray
+    d = a @ b_raw
+    assert isinstance(d, MPMatrix)
+    # (0,0): max(1+0, 2+2) = 4; (0,1): max(1+5, 2+1) = 6
+    # (1,0): max(3+0, 4+2) = 6; (1,1): max(3+5, 4+1) = 8
+    assert np.allclose(d.data, np.array([[4.0, 6.0], [6.0, 8.0]]))
+
+    # Equality check
+    assert a == MPMatrix(np.array([[1.0, 2.0], [3.0, 4.0]]))
+    assert not (a == MPMatrix(np.array([[0.0, 0.0], [0.0, 0.0]])))

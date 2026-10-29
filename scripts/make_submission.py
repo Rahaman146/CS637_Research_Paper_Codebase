@@ -24,10 +24,14 @@ INCLUDE_FILES = [
     "PROJECT_STATUS.md",
     "TEST_REPORT.md",
     "requirements.txt",
+    "CS637_Source_and_Claim_Check.md",
+    "CS637_Slide_Contact_Sheet.png",
     "CS637_Project_Presentation.pptx",
     "CS637_Project_Presentation.pdf",
     "CS637_Project_Presentation_Canva_Style.pptx",
     "CS637_Project_Presentation_Canva_Style.pdf",
+    "CS637_Project_Presentation_Minimal.pptx",
+    "CS637_Project_Presentation_Minimal.pdf",
     "CS637_Project_Presentation.mp4",
 ]
 
@@ -39,6 +43,7 @@ INCLUDE_DIRS = [
     "results",
     "figures",
     "figures_canva",
+    "figures_minimal",
     "presentation",
 ]
 

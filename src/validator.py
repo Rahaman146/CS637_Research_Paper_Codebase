@@ -64,8 +64,9 @@ class IndependentValidator:
         self,
         graph: ExtendedHSDFG,
         schedule: ScheduleResult,
+        release_times: Optional[Dict] = None,
     ) -> ValidationResult:
-        if not schedule.is_feasible or schedule.start_times is None:
+        if not schedule.is_feasible:
             return ValidationResult(
                 is_valid=False,
                 total_checks=1,
@@ -85,10 +86,140 @@ class IndependentValidator:
 
         n = graph.num_actors
         K = schedule.iterations
+
+        # An empty graph or zero-horizon schedule trivially satisfies all constraints
+        if n == 0 or K == 0:
+            return ValidationResult(
+                is_valid=True,
+                total_checks=0,
+                passed_checks=0,
+                max_residual_error=0.0,
+                violations=[],
+            )
+
+        if schedule.start_times is None:
+            return ValidationResult(
+                is_valid=False,
+                total_checks=1,
+                passed_checks=0,
+                max_residual_error=float("inf"),
+                violations=[
+                    ConstraintViolation(
+                        category="Feasibility",
+                        description="Schedule start times matrix is None",
+                        iteration=0,
+                        expected_bound=0.0,
+                        actual_value=-1.0,
+                        error_margin=1.0,
+                    )
+                ],
+            )
+
+        # Validate schedule array dimensions match graph
+        if schedule.start_times.shape != (n, K):
+            return ValidationResult(
+                is_valid=False,
+                total_checks=1,
+                passed_checks=0,
+                max_residual_error=float("inf"),
+                violations=[
+                    ConstraintViolation(
+                        category="MalformedSchedule",
+                        description=f"start_times shape {schedule.start_times.shape} does not match expected ({n}, {K})",
+                        iteration=0,
+                        expected_bound=float(n),
+                        actual_value=float(schedule.start_times.shape[0]),
+                        error_margin=1.0,
+                    )
+                ],
+            )
+
+        if schedule.actor_to_idx is not None:
+            missing_actors = [aid for aid in graph.actors if aid not in schedule.actor_to_idx]
+            if missing_actors:
+                return ValidationResult(
+                    is_valid=False,
+                    total_checks=1,
+                    passed_checks=0,
+                    max_residual_error=float("inf"),
+                    violations=[
+                        ConstraintViolation(
+                            category="MalformedSchedule",
+                            description=f"Actors {missing_actors} missing from schedule actor_to_idx mapping",
+                            iteration=0,
+                            expected_bound=0.0,
+                            actual_value=float(len(missing_actors)),
+                            error_margin=float(len(missing_actors)),
+                        )
+                    ],
+                )
+
         violations: List[ConstraintViolation] = []
         total_checks = 0
         passed_checks = 0
         max_residual_error = 0.0
+
+        # Validate completion times consistency: c_v(k) == s_v(k) + w(v)
+        if schedule.completion_times is not None:
+            if schedule.completion_times.shape != (n, K):
+                return ValidationResult(
+                    is_valid=False,
+                    total_checks=1,
+                    passed_checks=0,
+                    max_residual_error=float("inf"),
+                    violations=[
+                        ConstraintViolation(
+                            category="MalformedSchedule",
+                            description=f"completion_times shape {schedule.completion_times.shape} does not match expected ({n}, {K})",
+                            iteration=0,
+                            expected_bound=float(n),
+                            actual_value=float(schedule.completion_times.shape[0]),
+                            error_margin=1.0,
+                        )
+                    ],
+                )
+
+            for aid, actor in graph.actors.items():
+                for k in range(K):
+                    total_checks += 1
+                    c_act = schedule.get_completion(aid, k)
+                    s_act = schedule.get_start(aid, k)
+                    exp_c = s_act + actor.execution_time
+                    err = abs(c_act - exp_c)
+                    if err > self.tolerance:
+                        max_residual_error = max(max_residual_error, err)
+                        violations.append(
+                            ConstraintViolation(
+                                category="CompletionTime",
+                                description=f"Actor {actor.name} completion time {c_act} != start {s_act} + duration {actor.execution_time}",
+                                iteration=k,
+                                expected_bound=exp_c,
+                                actual_value=c_act,
+                                error_margin=err,
+                            )
+                        )
+                    else:
+                        passed_checks += 1
+
+        # Validate makespan consistency: makespan == max_{v, k} c_v(k)
+        if schedule.completion_times is not None and schedule.completion_times.size > 0:
+            total_checks += 1
+            calc_makespan = float(np.max(schedule.completion_times))
+            m_err = abs(schedule.makespan - calc_makespan)
+            if m_err > self.tolerance:
+                max_residual_error = max(max_residual_error, m_err)
+                violations.append(
+                    ConstraintViolation(
+                        category="Makespan",
+                        description=f"Reported makespan {schedule.makespan} != maximum completion time {calc_makespan}",
+                        iteration=K - 1,
+                        expected_bound=calc_makespan,
+                        actual_value=schedule.makespan,
+                        error_margin=m_err,
+                    )
+                )
+            else:
+                passed_checks += 1
 
         # Helper to get event time
         def get_event_time(aid: int, k: int, etype: EventType) -> float:
@@ -96,20 +227,27 @@ class IndependentValidator:
             w = graph.actors[aid].execution_time
             return st + (w if etype == EventType.COMPLETION else 0.0)
 
-        # 1. Non-negativity check
-        for aid in range(n):
+        # 1. Non-negativity and release-time check
+        for aid, actor in graph.actors.items():
             for k in range(K):
                 total_checks += 1
                 st = schedule.get_start(aid, k)
-                if st < -self.tolerance:
-                    err = -st
+                r_min = 0.0
+                if k == 0 and release_times:
+                    if aid in release_times:
+                        r_min = float(release_times[aid])
+                    elif actor.name in release_times:
+                        r_min = float(release_times[actor.name])
+
+                if st < r_min - self.tolerance:
+                    err = r_min - st
                     max_residual_error = max(max_residual_error, err)
                     violations.append(
                         ConstraintViolation(
-                            category="Non-negativity",
-                            description=f"Actor {graph.actors[aid].name} has negative start time",
+                            category="Non-negativity" if r_min == 0.0 else "ReleaseTime",
+                            description=f"Actor {actor.name} starts before required time {r_min}",
                             iteration=k,
-                            expected_bound=0.0,
+                            expected_bound=r_min,
                             actual_value=st,
                             error_margin=err,
                         )
@@ -234,8 +372,12 @@ class IndependentValidator:
         )
 
 
-def verify_schedule_legality(graph: ExtendedHSDFG, schedule: ScheduleResult) -> bool:
+def verify_schedule_legality(
+    graph: ExtendedHSDFG,
+    schedule: ScheduleResult,
+    release_times: Optional[Dict] = None,
+) -> bool:
     """Convenience functional interface for independent validation."""
     validator = IndependentValidator()
-    result = validator.validate(graph, schedule)
+    result = validator.validate(graph, schedule, release_times=release_times)
     return result.is_valid

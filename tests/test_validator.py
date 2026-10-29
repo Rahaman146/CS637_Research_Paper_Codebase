@@ -171,3 +171,140 @@ def test_adversarial_cyclic_contradiction():
     sched = synthesize_asap_schedule(g, iterations=1)
     assert not sched.is_feasible
     assert "positive cycle" in sched.conflict_info.lower()
+
+
+def test_validator_empty_graph_and_zero_horizon():
+    validator = IndependentValidator()
+
+    # Empty graph
+    g_empty = ExtendedHSDFG("Empty")
+    sched_empty = synthesize_asap_schedule(g_empty, iterations=1)
+    res_empty = validator.validate(g_empty, sched_empty)
+    assert res_empty.is_valid
+    assert res_empty.total_checks == 0
+    assert len(res_empty.violations) == 0
+
+    # Normal graph with K=0 iterations
+    g = ExtendedHSDFG("ZeroK")
+    g.add_actor("A", 2.0)
+    sched_k0 = synthesize_asap_schedule(g, iterations=0)
+    res_k0 = validator.validate(g, sched_k0)
+    assert res_k0.is_valid
+    assert res_k0.total_checks == 0
+
+
+def test_validator_arbitrary_actor_ids():
+    from src.model import Actor
+    g = ExtendedHSDFG("NonContig")
+    g.actors[55] = Actor(55, "Task55", 2.0)
+    g.actors[99] = Actor(99, "Task99", 3.0)
+    g.add_channel(55, 99, initial_tokens=0)
+
+    sched = synthesize_asap_schedule(g, iterations=2)
+    assert sched.is_feasible
+
+    validator = IndependentValidator()
+    res = validator.validate(g, sched)
+    assert res.is_valid
+    assert res.total_checks > 0
+    assert len(res.violations) == 0
+
+
+def test_validator_release_times():
+    g = ExtendedHSDFG("RelVal")
+    a = g.add_actor("A", 2.0)
+    b = g.add_actor("B", 3.0)
+    g.add_channel(a, b, initial_tokens=0)
+
+    # Valid schedule respecting release time
+    sched = synthesize_asap_schedule(g, iterations=1, release_times={a: 10.0})
+    validator = IndependentValidator()
+    res = validator.validate(g, sched, release_times={a: 10.0})
+    assert res.is_valid
+
+    # Schedule where actor A starts before required release time
+    res_bad = validator.validate(g, sched, release_times={a: 15.0})
+    assert not res_bad.is_valid
+    assert any(v.category == "ReleaseTime" for v in res_bad.violations)
+
+
+def test_validator_detects_tampered_completion_time():
+    g = ExtendedHSDFG("TamperedComp")
+    a = g.add_actor("A", 5.0)
+    sched = synthesize_asap_schedule(g, iterations=1)
+    assert sched.is_feasible
+
+    # Forged completion time: should be 0.0 + 5.0 = 5.0, tampered to 999.0
+    tampered = ScheduleResult(
+        is_feasible=True,
+        start_times=np.copy(sched.start_times),
+        completion_times=np.array([[999.0]]),
+        makespan=999.0,
+        iterations=1,
+        actor_to_idx=sched.actor_to_idx,
+    )
+    val = IndependentValidator()
+    res = val.validate(g, tampered)
+    assert not res.is_valid
+    assert any(v.category == "CompletionTime" for v in res.violations)
+
+
+def test_validator_detects_tampered_makespan():
+    g = ExtendedHSDFG("TamperedMakespan")
+    a = g.add_actor("A", 5.0)
+    sched = synthesize_asap_schedule(g, iterations=1)
+    assert sched.is_feasible
+
+    # Forged makespan: should be 5.0, tampered to 0.0
+    tampered = ScheduleResult(
+        is_feasible=True,
+        start_times=np.copy(sched.start_times),
+        completion_times=np.copy(sched.completion_times),
+        makespan=0.0,
+        iterations=1,
+        actor_to_idx=sched.actor_to_idx,
+    )
+    val = IndependentValidator()
+    res = val.validate(g, tampered)
+    assert not res.is_valid
+    assert any(v.category == "Makespan" for v in res.violations)
+
+
+def test_validator_detects_shape_mismatch():
+    g = ExtendedHSDFG("ShapeMismatch")
+    a = g.add_actor("A", 2.0)
+    b = g.add_actor("B", 3.0)
+
+    # Schedule has shape (1, 1) instead of (2, 1)
+    bad_shape_sched = ScheduleResult(
+        is_feasible=True,
+        start_times=np.zeros((1, 1)),
+        completion_times=np.array([[2.0]]),
+        makespan=2.0,
+        iterations=1,
+        actor_to_idx={a: 0},
+    )
+    val = IndependentValidator()
+    res = val.validate(g, bad_shape_sched)
+    assert not res.is_valid
+    assert any(v.category == "MalformedSchedule" for v in res.violations)
+
+
+def test_validator_detects_missing_actor_mapping():
+    g = ExtendedHSDFG("MissingActorMap")
+    a = g.add_actor("A", 2.0)
+    b = g.add_actor("B", 3.0)
+
+    # Actor B is missing from actor_to_idx mapping
+    bad_map_sched = ScheduleResult(
+        is_feasible=True,
+        start_times=np.zeros((2, 1)),
+        completion_times=np.array([[2.0], [3.0]]),
+        makespan=3.0,
+        iterations=1,
+        actor_to_idx={a: 0},  # B missing
+    )
+    val = IndependentValidator()
+    res = val.validate(g, bad_map_sched)
+    assert not res.is_valid
+    assert any(v.category == "MalformedSchedule" for v in res.violations)

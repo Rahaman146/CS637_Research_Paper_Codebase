@@ -164,6 +164,8 @@ class ExtendedHSDFG:
     ) -> int:
         if src_id not in self.actors or dst_id not in self.actors:
             raise KeyError("Constraint source and destination actors must exist in the graph")
+        if delay < 0:
+            raise ValueError(f"Constraint delay cannot be negative: {delay}")
         cid = self._next_constraint_id
         self._next_constraint_id += 1
         ct = TimingConstraint(
@@ -183,6 +185,8 @@ class ExtendedHSDFG:
     ) -> int:
         if src_id not in self.actors or dst_id not in self.actors:
             raise KeyError("Constraint source and destination actors must exist in the graph")
+        if delay < 0:
+            raise ValueError(f"Constraint delay cannot be negative: {delay}")
         cid = self._next_constraint_id
         self._next_constraint_id += 1
         ct = TimingConstraint(

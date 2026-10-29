@@ -27,7 +27,23 @@ def mp_mult(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     a = np.asarray(a, dtype=float)
     b = np.asarray(b, dtype=float)
 
-    if b.ndim == 1:
+    if a.ndim == 1 and b.ndim == 1:
+        assert len(a) == len(b), f"Dimension mismatch: {a.shape} vs {b.shape}"
+        if len(a) == 0:
+            return EPSILON
+        terms = a + b
+        terms = np.where(np.isnan(terms), EPSILON, terms)
+        return float(np.max(terms))
+    elif a.ndim == 1 and b.ndim == 2:
+        m = len(a)
+        m2, p = b.shape
+        assert m == m2, f"Dimension mismatch: {a.shape} vs {b.shape}"
+        if m == 0:
+            return np.full(p, EPSILON, dtype=float)
+        terms = a[:, None] + b
+        terms = np.where(np.isnan(terms), EPSILON, terms)
+        return np.max(terms, axis=0)
+    elif a.ndim == 2 and b.ndim == 1:
         # Matrix-vector multiplication
         n, m = a.shape
         assert m == len(b), f"Dimension mismatch: {a.shape} vs {b.shape}"
@@ -106,6 +122,9 @@ def maximum_cycle_mean(a: np.ndarray) -> float:
     n = a.shape[0]
     assert a.shape[1] == n, "Matrix must be square"
 
+    if n == 0:
+        return 0.0
+
     # Decompose into strongly connected components or run Karp's with universal source
     # Initialize state trajectory x(0), ..., x(n)
     x = np.full((n + 1, n), EPSILON, dtype=float)
@@ -149,11 +168,17 @@ class MPMatrix:
     def shape(self):
         return self.data.shape
 
-    def __add__(self, other: "MPMatrix") -> "MPMatrix":
-        return MPMatrix(mp_add(self.data, other.data))
+    def __add__(self, other) -> "MPMatrix":
+        b = other.data if isinstance(other, MPMatrix) else np.asarray(other, dtype=float)
+        return MPMatrix(mp_add(self.data, b))
 
-    def __matmul__(self, other: "MPMatrix") -> "MPMatrix":
-        return MPMatrix(mp_mult(self.data, other.data))
+    def __matmul__(self, other) -> "MPMatrix":
+        b = other.data if isinstance(other, MPMatrix) else np.asarray(other, dtype=float)
+        return MPMatrix(mp_mult(self.data, b))
+
+    def __eq__(self, other) -> bool:
+        b = other.data if isinstance(other, MPMatrix) else np.asarray(other, dtype=float)
+        return np.allclose(self.data, b, equal_nan=True)
 
     def star(self) -> Tuple["MPMatrix", bool]:
         res, feas = kleene_star(self.data)
