@@ -5,19 +5,19 @@
 **Authors:** Joep van Wanrooij, Twan Basten, Marc Geilen (TU Eindhoven) — EMSOFT 2025 / ACM TECS (DOI: [10.1145/3762643](https://doi.org/10.1145/3762643))  
 **Presentation Deck:** `CS637_Presentation_Final.pptx` (20 slides, 16:9 widescreen)  
 **Total Target Duration:** 12 to 14 minutes (~35–45 seconds per slide)  
-**Team Distribution:** Exactly 20% per member (4 slides each)
+**Speaking Order:** **Prem → Badri → Rahaman → Hemanth → Karthik** (Equal 20% / 4 slides each)
 
 ---
 
 ## Team Allocation & Slide Mapping
 
-| Speaker | Member Name | Roll Number | Department | Slides | Core Focus Areas |
-|:---:|:---|:---:|:---:|:---:|:---|
-| **1** | **Sk J Ur Rahaman** *(Lead)* | 230951 | CSE | **Slides 1–4** | Title, Overview Roadmap, Industrial Motivation, Research Gap & Algorithmic Paradigms |
-| **2** | **Sanga Badri** | 230911 | CSE | **Slides 5–8** | SDF/HSDF Semantics, Timing Bounds Inversion, Optimization Objectives, Max-Plus Algebra |
-| **3** | **Ampili Hemanth Kumar** | 230128 | CSE | **Slides 9–12** | Methodological Pipeline, Algorithm 2 Kleene Star, Algorithm 3 Bellman-Ford, Worked Example |
-| **4** | **Vempati Prem Santhosh** | 231137 | CSE | **Slides 13–16** | Correctness Guarantees, Experimental Methodology, Exp 1 Wafer Tool, Exp 2 & 3 Scalability |
-| **5** | **Koneti Karthik** | 230568 | CSE | **Slides 17–20** | Critical Reflection & Threats, Key Conclusions, Bibliography, Team Contributions & Q&A |
+| Speaker # | Member Name | Roll Number | Department | Slides | Section Focus & Key Contributions | Target Time |
+|:---:|:---|:---:|:---:|:---:|:---|:---:|
+| **1** | **Vempati Prem Santhosh** | 231137 | CSE | **Slides 1–4** | Welcome & Introduction, Roadmap, Industrial Motivation, Research Gap & Algorithmic Paradigms | ~2.5–3.0 min |
+| **2** | **Sanga Badri** | 230911 | CSE | **Slides 5–8** | SDF/HSDF Semantics, Timing Bounds Inversion, Optimization Objectives, Max-Plus Algebra | ~2.5–3.0 min |
+| **3** | **Sk J Ur Rahaman** *(Project Lead)* | 230951 | CSE | **Slides 9–12** | Methodological Pipeline, Algorithm 2 Kleene Star, Algorithm 3 Bellman-Ford, Worked Example | ~2.5–3.0 min |
+| **4** | **Ampili Hemanth Kumar** | 230128 | CSE | **Slides 13–16** | Correctness Guarantees, Experimental Methodology, Exp 1 Wafer Tool, Exp 2 & 3 Scalability | ~2.5–3.0 min |
+| **5** | **Koneti Karthik** | 230568 | CSE | **Slides 17–20** | Critical Reflection & Threats, Key Conclusions, Bibliography, Team Allocation & Q&A | ~2.5–3.0 min |
 
 ---
 
@@ -29,6 +29,7 @@
 - **$\lambda^*$:** *“Lambda star”* (maximum cycle ratio / minimum sustainable period)
 - **HSDFG:** *“Homogeneous Synchronous Dataflow Graph”*
 - **Dwell Time:** The maximum allowable idle latency between consecutive physical operations (e.g., thermal residency $\le 3.0\text{ s}$)
+- **Bellman-Ford:** *“BELL-man FORD”*
 
 ---
 
@@ -36,7 +37,7 @@
 
 ```
 ========================================================================================
-SPEAKER 1: Sk J Ur Rahaman (Roll: 230951 — Project Lead)
+SPEAKER 1: Vempati Prem Santhosh (Roll: 231137)
 SLIDES: 1 to 4  |  TARGET TIME: ~2.5 to 3.0 Minutes
 ========================================================================================
 ```
@@ -46,11 +47,11 @@ SLIDES: 1 to 4  |  TARGET TIME: ~2.5 to 3.0 Minutes
 - **Target Time:** 40 seconds
 
 > **[Spoken Script]**
-> "Good morning, respected instructor and colleagues. Welcome to our CS637 Embedded Systems research presentation. 
+> "Good morning, respected instructor and colleagues. Welcome to our CS637 Embedded Systems research project presentation. 
 > 
 > Today, our team presents our complete evaluation and codebase reproduction of the EMSOFT 2025 research paper titled: *'Schedule synthesis for synchronous dataflow models with lower and upper timing bounds'*, authored by Joep van Wanrooij, Twan Basten, and Marc Geilen from Eindhoven University of Technology, published in ACM Transactions on Embedded Computing Systems.
 > 
-> Our team from the Department of Computer Science and Engineering at IIT Kanpur comprises five members: myself, Sk J Ur Rahaman, serving as project lead, alongside Sanga Badri, Ampili Hemanth Kumar, Vempati Prem Santhosh, and Koneti Karthik. Each of us has contributed an equal twenty percent to this reproduction effort. 
+> Our team from the Department of Computer Science and Engineering at IIT Kanpur comprises five members: myself, Vempati Prem Santhosh, alongside Sanga Badri, our project lead Sk J Ur Rahaman, Ampili Hemanth Kumar, and Koneti Karthik. Each of us has contributed an equal twenty percent to this reproduction effort. 
 > 
 > In this talk, we will demonstrate how analytical max-plus state-space algebra enables polynomial-time schedule synthesis for embedded dataflow systems with rigid upper timing bounds, validated on industrial semiconductor wafer cluster tools."
 
@@ -64,7 +65,7 @@ SLIDES: 1 to 4  |  TARGET TIME: ~2.5 to 3.0 Minutes
 > "Here is our roadmap for today's talk, structured into six sequential chapters. 
 > 
 > First, in *The Problem*, we uncover why classical dataflow scheduling fails when upper timing bounds are introduced. 
-> Second, in *The Model*, we formalize Synchronous Dataflow semantics and show how upper bounds are inverted. 
+> Second, in *The Model*, we formalize Synchronous Dataflow semantics and show how upper bounds are inverted into difference constraints. 
 > Third, in *The Idea*, we reveal the core theoretical breakthrough: linearizing timing constraints into a max-plus semiring. 
 > Fourth, in *The Algorithms*, we walk through the polynomial-time Kleene closure and Bellman-Ford synthesis algorithms with an illustrative worked example. 
 > Fifth, in *The Evidence*, we present our formal correctness proofs, benchmark methodology, wafer cluster tool results, and scalability stress-tests. 
@@ -98,7 +99,7 @@ SLIDES: 1 to 4  |  TARGET TIME: ~2.5 to 3.0 Minutes
 > 
 > The paper's breakthrough is to recognize that upper bounds can be re-cast as backward difference constraints, embedded into max-plus linear state-space matrices, and solved via Kleene closure and longest-path propagation.
 > 
-> I will now hand over to Sanga Badri to walk us through the formal dataflow semantics and the timing bounds transformation."
+> I will now pass the floor to Sanga Badri to walk us through the formal dataflow semantics and the timing bounds transformation."
 
 ---
 
@@ -114,7 +115,7 @@ SLIDES: 5 to 8  |  TARGET TIME: ~2.5 to 3.0 Minutes
 - **Target Time:** 45 seconds
 
 > **[Spoken Script]**
-> "Thank you, Rahaman. I am Sanga Badri, and I will explain the formal dataflow foundations.
+> "Thank you, Prem. I am Sanga Badri, and I will explain the formal dataflow foundations.
 > 
 > A Synchronous Dataflow graph $G = (V, E, \text{prd}, \text{cns}, d, w)$ consists of computational actors $V$, connected by FIFO channels $E$. Every time an actor $u$ fires, it produces a fixed number of tokens $\text{prd}(e)$, and the consuming actor $v$ consumes $\text{cns}(e)$ tokens.
 > 
@@ -174,13 +175,13 @@ SLIDES: 5 to 8  |  TARGET TIME: ~2.5 to 3.0 Minutes
 > 
 > In max-plus algebra, the Kleene star computes all-pairs longest paths in $O(n^3)$ time without unrolling. If any diagonal entry $(M_0^*)_{ii} > 0$, it proves that an intra-iteration contradictory cycle exists, immediately catching infeasibility.
 > 
-> I will now pass the floor to Ampili Hemanth Kumar to walk us through the algorithmic formulation and the worked example."
+> I will now pass the floor to our project lead, Sk J Ur Rahaman, to walk us through the methodological pipeline, algorithmic formulations, and our worked example."
 
 ---
 
 ```
 ========================================================================================
-SPEAKER 3: Ampili Hemanth Kumar (Roll: 230128)
+SPEAKER 3: Sk J Ur Rahaman (Roll: 230951 — Project Lead)
 SLIDES: 9 to 12  |  TARGET TIME: ~2.5 to 3.0 Minutes
 ========================================================================================
 ```
@@ -190,7 +191,7 @@ SLIDES: 9 to 12  |  TARGET TIME: ~2.5 to 3.0 Minutes
 - **Target Time:** 40 seconds
 
 > **[Spoken Script]**
-> "Thank you, Badri. I am Ampili Hemanth Kumar. I will explain the end-to-end synthesis pipeline and our algorithmic implementation.
+> "Thank you, Badri. I am Sk J Ur Rahaman. I will explain the end-to-end synthesis pipeline and our algorithmic implementation.
 > 
 > The methodological architecture consists of four distinct stages.
 > 
@@ -250,16 +251,18 @@ SLIDES: 9 to 12  |  TARGET TIME: ~2.5 to 3.0 Minutes
 > 
 > Look at the top timeline: Greedy ASAP fires Pre-Heat as early as possible at $t = 3.0\text{ s}$, completing at $t = 6.0\text{ s}$. But Chamber $C$ is busy until $t = 12.0\text{ s}$! The heated wafer sits idling for $12 - 6 = 6.0\text{ seconds}$—violating the 4.0-second dwell limit and destroying the wafer!
 > 
-> Now observe the synthesized schedule below: our algorithm inverts the upper bound into a backward constraint: $s_A \ge s_C - 4 - w(A) = 12 - 4 - 3 = 5.0\text{ s}$. 
+> Now observe the synthesized schedule below: our algorithm inverts the upper bound into a backward constraint: 
+> $$s_A \ge s_C - 4 - w(A) = 12 - 4 - 3 = 5.0\text{ s}$$
+> 
 > The synthesizer *deliberately delays* Pre-Heat to start at $t = 5.0\text{ s}$. Pre-Heat completes at $t = 8.0\text{ s}$, and when Chamber $C$ opens at $t = 12.0\text{ s}$, the wafer has waited exactly $12 - 8 = 4.0\text{ seconds}$—satisfying the upper bound with mathematical perfection!
 > 
-> I now hand over to Vempati Prem Santhosh to present our theoretical correctness proofs and experimental results."
+> I now hand over to Ampili Hemanth Kumar to walk us through the theoretical correctness proofs and our experimental evaluation."
 
 ---
 
 ```
 ========================================================================================
-SPEAKER 4: Vempati Prem Santhosh (Roll: 231137)
+SPEAKER 4: Ampili Hemanth Kumar (Roll: 230128)
 SLIDES: 13 to 16  |  TARGET TIME: ~2.5 to 3.0 Minutes
 ========================================================================================
 ```
@@ -269,7 +272,7 @@ SLIDES: 13 to 16  |  TARGET TIME: ~2.5 to 3.0 Minutes
 - **Target Time:** 45 seconds
 
 > **[Spoken Script]**
-> "Thank you, Hemanth. I am Vempati Prem Santhosh. I will present the formal correctness guarantees and our empirical evaluation.
+> "Thank you, Rahaman. I am Ampili Hemanth Kumar. I will present the formal correctness guarantees and our empirical evaluation.
 > 
 > The paper establishes four foundational theorems that we formally re-verified during our reproduction.
 > 
@@ -326,7 +329,7 @@ SLIDES: 13 to 16  |  TARGET TIME: ~2.5 to 3.0 Minutes
 > 
 > On the right, we examine the DSP pipeline across a tightness sweep from $t_f = 0.8$ to $2.0$. At $t_f = 1.0$, where the upper bound equals the critical cycle latency ($T_{\text{crit}} = 12.0\text{ s}$), slack hits exactly zero. The moment $t_f < 1.0$, an inter-iteration positive cycle forms, and our algorithm rejects the specification in just 0.02 milliseconds!
 > 
-> I now pass the floor to Koneti Karthik for our critical reflection, conclusions, and team overview."
+> I now hand over to Koneti Karthik for our critical reflection, conclusions, and team overview."
 
 ---
 
@@ -342,7 +345,7 @@ SLIDES: 17 to 20  |  TARGET TIME: ~2.5 to 3.0 Minutes
 - **Target Time:** 45 seconds
 
 > **[Spoken Script]**
-> "Thank you, Prem. I am Koneti Karthik. I will conclude our talk with an honest critical appraisal, key conclusions, and our team contributions.
+> "Thank you, Hemanth. I am Koneti Karthik. I will conclude our talk with an honest critical appraisal, key conclusions, and our team contributions.
 > 
 > In Slide 17, we distinguish between limitations acknowledged by the authors and additional practical challenges we discovered during our reproduction.
 > 
@@ -392,11 +395,11 @@ SLIDES: 17 to 20  |  TARGET TIME: ~2.5 to 3.0 Minutes
 > **[Spoken Script]**
 > "Finally, Slide 20 highlights our team allocation and open-source project deliverables.
 > 
-> Our team divided the engineering workload into five equal twenty percent components:
-> Sk J Ur Rahaman engineered the max-plus matrix engine and Kleene star closure. 
-> Sanga Badri developed the Extended HSDF model, balance equations, and actor serialization. 
-> Ampili Hemanth Kumar implemented the Bellman-Ford synthesis algorithm and cycle conflict extractor. 
+> Following the speaking order of today's presentation, our team divided the engineering workload into five equal twenty percent components:
 > Vempati Prem Santhosh built the independent test oracle and the 28-case automated verification suite. 
+> Sanga Badri developed the Extended HSDF model, balance equations, and actor serialization. 
+> Our project lead, Sk J Ur Rahaman, engineered the max-plus matrix engine, state-space construction, and Kleene star closure. 
+> Ampili Hemanth Kumar implemented the Bellman-Ford synthesis algorithm and cycle conflict extractor. 
 > And I, Koneti Karthik, engineered the benchmark suites, parameter sweeps, and presentation assets.
 > 
 > Our full codebase, along with documentation and reproduction scripts, is verified and committed to our repository.
